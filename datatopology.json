@@ -1,0 +1,37 @@
+{
+  "authoritative_shard_group": "metadata",
+  "shard_indexes": {
+    "xxhash_id": {
+      "type": "xxhash",
+      "columns": ["id"]
+    }
+  },
+  "shard_groups": [
+    {
+      "uid": "metadata",
+      "key_ranges": [{ "shard_uid": "shard1" }]
+    },
+    {
+      "uid": "main_shards",
+      "default_shard_index": "xxhash_id",
+      "key_ranges": [
+        { "shard_uid": "shard1", "end": "40" },
+        { "shard_uid": "shard2", "start": "40", "end": "80" },
+        { "shard_uid": "shard3", "start": "80", "end": "c0" },
+        { "shard_uid": "shard4", "start": "c0" }
+      ]
+    }
+  ],
+  "databases": {
+    "postgres": {
+      "schemas": {
+        "public": {
+          "tables": {
+            "customers": { "shard_group": "main_shards" },
+            "orders": { "shard_group": "main_shards" }
+          }
+        }
+      }
+    }
+  }
+}

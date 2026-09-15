@@ -1,44 +1,58 @@
 package main
 
 import (
+	"MiniNeki/config"
 	"MiniNeki/router"
+	"MiniNeki/server"
+
 	"context"
 	"log"
+	"net/http"
+	"os"
 
 	"github.com/jackc/pgx/v5"
 )
 
 func main() {
-	shards := []router.Shard{
-		{Name: "shard0", URL: "postgres://user:password@localhost:5433/shard0"},
-		{Name: "shard1", URL: "postgres://user:password@localhost:5434/shard1"},
-		{Name: "shard2", URL: "postgres://user:password@localhost:5435/shard2"},
+	schemaSql, err := os.ReadFile("schema.sql")
+	if err != nil {
+		log.Fatalf("failed to read schema.sql: %v", err)
 	}
-	for i := range shards {
-		conn, err := pgx.Connect(context.Background(), shards[i].URL)
+
+	urls := map[string]string{
+		"shard1": "postgres://user:password@localhost:5433/shard1",
+		"shard2": "postgres://user:password@localhost:5434/shard2",
+		"shard3": "postgres://user:password@localhost:5435/shard3",
+		"shard4": "postgres://user:password@localhost:5436/shard4",
+	}
+	shardsMap := make(map[string]router.Shard)
+	for name, url := range urls {
+		conn, err := pgx.Connect(context.Background(), url)
 		if err != nil {
-			log.Printf("failed to connect to %s: %v", shards[i].Name, err)
+			log.Printf("failed to connect to %s: %v", name, err)
 			continue
 		}
 		defer conn.Close(context.Background())
-		shards[i].Conn = conn
 
-		query := `CREATE TABLE IF NOT EXISTS users (
-			id SERIAL PRIMARY KEY,
-			user_id INT NOT NULL UNIQUE,
-			name VARCHAR(255) NOT NULL
-		)`
-		if _, err := conn.Exec(context.Background(), query); err != nil {
-			log.Fatalf("failed to create table on %s: %v", shards[i].Name, err)
+		if _, err := conn.Exec(context.Background(), string(schemaSql)); err != nil {
+			log.Fatalf("failed to create table on %s: %v", name, err)
 		}
-		log.Printf("%s: table created", shards[i].Name)
+		shardsMap[name] = router.Shard{Name: name, URL: url, Conn: conn}
+		log.Printf("%s: Ready", name)
 	}
 
-	sm := router.ShardMap{Shards: shards}
-	if err := router.Insert(sm, 1, "Yonathan Taweke"); err != nil {
-		log.Printf("failed to insert: %v", err)
+	topo, err := config.Load("datatopology.json")
+	if err != nil {
+		log.Fatalf("failed to load topology: %v", err)
 	}
-	if err := router.Query(sm, 1); err != nil {
-		log.Printf("failed to query: %v", err)
+
+	r := &router.Router{
+		Topology: topo,
+		Shards:   shardsMap,
 	}
+	s := server.New(r)
+	http.HandleFunc("/execute", s.HandleExecute)
+
+	log.Println("server starting on :8080")
+	log.Fatal(http.ListenAndServe(":8080", nil))
 }
