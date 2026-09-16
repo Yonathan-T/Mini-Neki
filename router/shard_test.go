@@ -44,11 +44,17 @@ func TestSelect(t *testing.T) {
 	}
 	custShard, _ := r.Route("customers", 1)
 	orderShard, _ := r.Route("orders", 1)
+	countryShard, _ := r.Route("countries", nil)
 
+	if err != nil {
+		t.Errorf("expected no error for global table, got %v", err)
+	}
+	if countryShard.Name != "shard1" {
+		t.Errorf("expected no error for global table, got %v", err)
+	}
 	if custShard.Name != orderShard.Name {
 		t.Errorf("Colocation fails! Customer table went to %s, Order went to %s", custShard.Name, orderShard.Name)
 	}
-
 	_, err = r.Route("nonExistentTableJustLikeMyWorkLifeBalance", 1)
 	if err == nil {
 		t.Errorf("expected error for non-existent table, got nil")

@@ -28,7 +28,8 @@
         "public": {
           "tables": {
             "customers": { "shard_group": "main_shards" },
-            "orders": { "shard_group": "main_shards" }
+            "orders": { "shard_group": "main_shards" },
+            "countries": { "shard_group": "metadata" }
           }
         }
       }

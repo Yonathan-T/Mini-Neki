@@ -2,14 +2,20 @@ package router
 
 import (
 	"MiniNeki/config"
+
 	"encoding/binary"
 	"fmt"
+	"log"
+	"os"
+	"sync"
+	"time"
 
 	"github.com/cespare/xxhash/v2"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Router struct {
+	mu       sync.RWMutex
 	Topology *config.Topology
 	Shards   map[string]Shard
 }
@@ -17,7 +23,7 @@ type Router struct {
 type Shard struct {
 	Name string
 	URL  string
-	Conn *pgx.Conn
+	Pool *pgxpool.Pool
 }
 
 func (r *Router) selectShard(keyRanges []config.KeyRange, keyBytes []byte) Shard {
@@ -41,6 +47,9 @@ func (r *Router) selectShard(keyRanges []config.KeyRange, keyBytes []byte) Shard
 	return r.Shards[keyRanges[0].ShardUID]
 }
 func (r *Router) Route(tblName string, key any) (Shard, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	tbl, ok := r.Topology.Databases["postgres"].Schemas["public"].Tables[tblName]
 	if !ok {
 		return Shard{}, fmt.Errorf("table %s not found in topology", tblName)
@@ -61,6 +70,8 @@ func (r *Router) Route(tblName string, key any) (Shard, error) {
 		KeyBytes = []byte(v)
 	case []byte:
 		KeyBytes = v
+	case nil:
+		KeyBytes = nil
 	default:
 		return Shard{}, fmt.Errorf("unsupported key type: %T", key)
 	}
@@ -74,4 +85,31 @@ func (r *Router) Route(tblName string, key any) (Shard, error) {
 		}
 	}
 	return Shard{}, fmt.Errorf("shard group %s not found in topology", shardGroupName)
+}
+
+func (r *Router) Watcher(filepath string) {
+	var lastModified time.Time
+	if info, err := os.Stat(filepath); err == nil {
+		lastModified = info.ModTime()
+	}
+
+	for {
+		time.Sleep(1 * time.Second)
+		info, err := os.Stat(filepath)
+		if err != nil {
+			continue
+		}
+		if info.ModTime().After(lastModified) {
+			lastModified = info.ModTime()
+			newTopology, err := config.Load(filepath)
+			if err != nil {
+				log.Printf("[Watcher] failed to reload topology: %v [...KEEPING CURRENT]", err)
+				continue
+			}
+			r.mu.Lock()
+			r.Topology = newTopology
+			r.mu.Unlock()
+			log.Printf("[Watcher] topology reloaded successfully")
+		}
+	}
 }

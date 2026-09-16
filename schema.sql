@@ -11,3 +11,9 @@ CREATE TABLE IF NOT EXISTS orders (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT
 );
+
+-- a 'global' table that wont be sharded.
+CREATE TABLE IF NOT EXISTS countries (
+    code VARCHAR(3) PRIMARY KEY,
+    name TEXT NOT NULL
+);

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 func main() {
@@ -27,17 +27,17 @@ func main() {
 	}
 	shardsMap := make(map[string]router.Shard)
 	for name, url := range urls {
-		conn, err := pgx.Connect(context.Background(), url)
+		pool, err := pgxpool.New(context.Background(), url)
 		if err != nil {
 			log.Printf("failed to connect to %s: %v", name, err)
 			continue
 		}
-		defer conn.Close(context.Background())
+		defer pool.Close()
 
-		if _, err := conn.Exec(context.Background(), string(schemaSql)); err != nil {
+		if _, err := pool.Exec(context.Background(), string(schemaSql)); err != nil {
 			log.Fatalf("failed to create table on %s: %v", name, err)
 		}
-		shardsMap[name] = router.Shard{Name: name, URL: url, Conn: conn}
+		shardsMap[name] = router.Shard{Name: name, URL: url, Pool: pool}
 		log.Printf("%s: Ready", name)
 	}
 
@@ -50,6 +50,8 @@ func main() {
 		Topology: topo,
 		Shards:   shardsMap,
 	}
+	go r.Watcher("./datatopology.json")
+
 	s := server.New(r)
 	http.HandleFunc("/execute", s.HandleExecute)
 
