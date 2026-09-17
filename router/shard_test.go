@@ -60,3 +60,35 @@ func TestSelect(t *testing.T) {
 		t.Errorf("expected error for non-existent table, got nil")
 	}
 }
+
+func TestRouteAll(t *testing.T) {
+	topo, err := config.Load("../datatopology.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	Shards := map[string]Shard{
+		"shard1": {Name: "shard1"},
+		"shard2": {Name: "shard2"},
+		"shard3": {Name: "shard3"},
+		"shard4": {Name: "shard4"},
+	}
+	r := &Router{
+		Topology: topo,
+		Shards:   Shards,
+	}
+	custShards, err := r.RouteAll("customers")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(custShards) != 4 {
+		t.Errorf("expected 4 shards for customers, got %d", len(custShards))
+	}
+
+	countryShards, err := r.RouteAll("countries")
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+	if len(countryShards) != 1 || countryShards[0].Name != "shard1" {
+		t.Errorf("expected 1 shard (shard 1) for countries, got %v", countryShards)
+	}
+}
