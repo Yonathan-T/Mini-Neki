@@ -15,6 +15,8 @@ A complete sharded database router like Neki implements three main stages:
 
 MiniNeki does not implement a SQL AST parser. Instead, the client sends a JSON payload with the target table, routing key, raw parameterized SQL query, and arguments. PostgreSQL itself compiles and executes the SQL. 
 
+Because i am not building a full SQL AST parser here, some queries won't work out of the box. i added basic string-matching support for `ORDER BY` and `LIMIT` on scatter-gather queries to demonstrate distributed sorting and truncation. But once you see how many edge cases you have to consider for every single SQL keyword across shards, you quickly realize why at that point it's so much better to build a real SQL AST parser and query planner (YOU WISH) instead of writing endless string hacks.
+
 MiniNeki focuses on the planner and executor stages:
 
 - if you went to the first commit you see i used Modulo sharding (`id % N`), well i was gonna call it a day with just that it was after that decided to implement the `xxhash64` why? b/c in production if you use modulo adding a shard forces reshuffling almost the entire database across the network. Instead, we use key-range partitioning, routing keys are hashed with `xxhash64` into uniform hex ranges (`00-40`, `40-80`, `80-c0`, `c0-ff`). If a shard gets too full, you only split that specific range without touching the rest of the cluster. its deterministic so given a key it will always route to the same shard unless you split the range and stuff

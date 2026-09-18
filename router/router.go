@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -233,7 +235,7 @@ func (r *Router) Execute(ctx context.Context, table string, key any, query strin
 		if allData == nil {
 			allData = []map[string]any{}
 		}
-
+		allData = sortResults(allData, query)
 		return QueryResult{
 			Status:        "OK",
 			Mode:          "scatter-gather",
@@ -307,4 +309,56 @@ func (r *Router) Watcher(filepath string) {
 			log.Printf("[Watcher] topology reloaded successfully")
 		}
 	}
+}
+
+func sortResults(data []map[string]any, query string) []map[string]any {
+	upper := strings.ToUpper(query)
+
+	idx := strings.Index(upper, "ORDER BY")
+	if idx != -1 && len(data) > 1 {
+		parts := strings.Fields(query[idx+len("ORDER BY"):])
+		if len(parts) > 0 {
+			col := strings.Trim(parts[0], ";,")
+			isDesc := len(parts) > 1 && strings.ToUpper(strings.Trim(parts[1], ";,")) == "DESC"
+
+			sort.SliceStable(data, func(i, j int) bool {
+				a, b := data[i][col], data[j][col]
+				var less bool
+				switch va := a.(type) {
+				case int64:
+					if vb, ok := b.(int64); ok {
+						less = va < vb
+					}
+				case int:
+					if vb, ok := b.(int); ok {
+						less = va < vb
+					}
+				case string:
+					if vb, ok := b.(string); ok {
+						less = va < vb
+					}
+				case float64:
+					if vb, ok := b.(float64); ok {
+						less = va < vb
+					}
+				}
+				if isDesc {
+					return !less
+				}
+				return less
+			})
+		}
+	}
+
+	limitIdx := strings.Index(upper, "LIMIT")
+	if limitIdx != -1 {
+		limitParts := strings.Fields(query[limitIdx+len("LIMIT"):])
+		if len(limitParts) > 0 {
+			if n, err := strconv.Atoi(strings.Trim(limitParts[0], ";,")); err == nil && n < len(data) {
+				data = data[:n]
+			}
+		}
+	}
+
+	return data
 }
