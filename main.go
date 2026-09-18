@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	schemaSql, err := os.ReadFile("schema.sql")
+	schemaSQL, err := os.ReadFile("schema.sql")
 	if err != nil {
 		log.Fatalf("failed to read schema.sql: %v", err)
 	}
@@ -34,7 +34,7 @@ func main() {
 		}
 		defer pool.Close()
 
-		if _, err := pool.Exec(context.Background(), string(schemaSql)); err != nil {
+		if _, err := pool.Exec(context.Background(), string(schemaSQL)); err != nil {
 			log.Fatalf("failed to create table on %s: %v", name, err)
 		}
 		shardsMap[name] = router.Shard{Name: name, URL: url, Pool: pool}
