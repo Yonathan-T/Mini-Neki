@@ -323,29 +323,37 @@ func sortResults(data []map[string]any, query string) []map[string]any {
 
 			sort.SliceStable(data, func(i, j int) bool {
 				a, b := data[i][col], data[j][col]
-				var less bool
 				switch va := a.(type) {
 				case int64:
 					if vb, ok := b.(int64); ok {
-						less = va < vb
+						if isDesc {
+							return va > vb
+						}
+						return va < vb
 					}
 				case int:
 					if vb, ok := b.(int); ok {
-						less = va < vb
+						if isDesc {
+							return va > vb
+						}
+						return va < vb
 					}
 				case string:
 					if vb, ok := b.(string); ok {
-						less = va < vb
+						if isDesc {
+							return va > vb
+						}
+						return va < vb
 					}
 				case float64:
 					if vb, ok := b.(float64); ok {
-						less = va < vb
+						if isDesc {
+							return va > vb
+						}
+						return va < vb
 					}
 				}
-				if isDesc {
-					return !less
-				}
-				return less
+				return false
 			})
 		}
 	}
